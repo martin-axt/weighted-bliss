@@ -1,0 +1,14 @@
+{
+  "name": "deep-armstrong",
+  "version": "1.0.0",
+  "description": "A weighted todo list app with pastel aesthetics",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}
