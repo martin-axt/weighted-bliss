@@ -23,8 +23,9 @@ RUN npm install --omit=dev
 
 # Copy build files from the previous stage
 COPY --from=build-stage /app/dist ./dist
-# Copy the server file
+# Copy the server files
 COPY server.js ./
+COPY db.js ./
 
 # We'll map the database file to a volume to persist data
 ENV PORT=3001
