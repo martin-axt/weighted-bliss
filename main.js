@@ -1,6 +1,9 @@
 // State management
-let tasks = JSON.parse(localStorage.getItem('tasks')) || [];
-let history = JSON.parse(localStorage.getItem('dailyHistory')) || {}; // { 'YYYY-MM-DD': number }
+let tasks = [];
+let deletedTasks = [];
+let history = {};
+let prevCompletedWeight = 0;
+let sectionOrder = [];
 
 const today = new Date();
 today.setHours(0, 0, 0, 0);
@@ -37,16 +40,24 @@ const valUrgency = document.getElementById('val-urgency');
 const valMood = document.getElementById('val-mood');
 const valTime = document.getElementById('val-time');
 
+// Bin Elements
+const binModal = document.getElementById('bin-modal');
+const binList = document.getElementById('bin-list');
+const binOpenBtn = document.getElementById('bin-open-btn');
+const binCloseBtn = document.getElementById('bin-close-btn');
+
 urgencyInput.addEventListener('input', (e) => valUrgency.textContent = e.target.value);
 moodInput.addEventListener('input', (e) => valMood.textContent = e.target.value);
 timeInput.addEventListener('input', (e) => valTime.textContent = e.target.value);
 
 // Initialize
-function init() {
+async function init() {
+    await loadInitialData();
     renderTasks();
     updateProgressBar();
     renderWeeklyCalendar();
     renderStats();
+    initSectionDragging();
 
     prevWeekBtn.addEventListener('click', () => {
         weekOffset--;
@@ -56,6 +67,22 @@ function init() {
     nextWeekBtn.addEventListener('click', () => {
         weekOffset++;
         renderWeeklyCalendar();
+    });
+
+    binOpenBtn.addEventListener('click', () => {
+        binModal.classList.add('active');
+        renderDeletedTasks();
+    });
+
+    binCloseBtn.addEventListener('click', () => {
+        binModal.classList.remove('active');
+    });
+
+    // Close on outside click
+    binModal.addEventListener('click', (e) => {
+        if (e.target === binModal) {
+            binModal.classList.remove('active');
+        }
     });
 }
 
@@ -86,16 +113,83 @@ todoForm.addEventListener('submit', (e) => {
     valTime.textContent = '3';
 });
 
-function saveState() {
+async function loadInitialData() {
+    try {
+        const response = await fetch('/api/data');
+        if (response.ok) {
+            const data = await response.json();
+            tasks = data.tasks.map(t => ({ ...t, completed: t.completed === 1 }));
+            deletedTasks = data.deletedTasks.map(t => ({ ...t, completed: t.completed === 1 }));
+            history = data.history;
+            sectionOrder = JSON.parse(data.settings.sectionOrder || 'null');
+            if (sectionOrder) {
+                const main = document.querySelector('main');
+                sectionOrder.forEach(id => {
+                    const section = document.getElementById(id);
+                    if (section) main.appendChild(section);
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Failed to load local data, falling back to localStorage:', error);
+        tasks = JSON.parse(localStorage.getItem('tasks')) || [];
+        deletedTasks = JSON.parse(localStorage.getItem('deletedTasks')) || [];
+        history = JSON.parse(localStorage.getItem('dailyHistory')) || {};
+        const savedOrder = JSON.parse(localStorage.getItem('sectionOrder'));
+        if (savedOrder) {
+            const main = document.querySelector('main');
+            savedOrder.forEach(id => {
+                const section = document.getElementById(id);
+                if (section) main.appendChild(section);
+            });
+        }
+    }
+}
+
+async function saveState() {
+    // Keep localStorage as temporary backup
     localStorage.setItem('tasks', JSON.stringify(tasks));
+    localStorage.setItem('deletedTasks', JSON.stringify(deletedTasks));
     localStorage.setItem('dailyHistory', JSON.stringify(history));
+
+    // Sync with SQLite
+    try {
+        await fetch('/api/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                tasks,
+                deletedTasks,
+                history,
+                settings: { sectionOrder: JSON.parse(localStorage.getItem('sectionOrder')) }
+            })
+        });
+    } catch (e) {
+        console.warn('SQLite Sync failed, data saved only in localStorage');
+    }
 }
 
 function deleteTask(id) {
-    tasks = tasks.filter(t => t.id !== id);
-    saveState();
-    renderTasks();
-    updateProgressBar();
+    const index = tasks.findIndex(t => t.id === id);
+    if (index !== -1) {
+        const deleted = tasks.splice(index, 1)[0];
+        deletedTasks.unshift(deleted); // Add to beginning of bin
+        saveState();
+        renderTasks();
+        updateProgressBar();
+    }
+}
+
+function undeleteTask(id) {
+    const index = deletedTasks.findIndex(t => t.id === id);
+    if (index !== -1) {
+        const restored = deletedTasks.splice(index, 1)[0];
+        tasks.push(restored);
+        saveState();
+        renderTasks();
+        renderDeletedTasks();
+        updateProgressBar();
+    }
 }
 
 function finishTask(id) {
@@ -123,12 +217,65 @@ function updateProgressBar() {
     const color = getProgressColor(displayWeight);
     progressBarFill.style.backgroundColor = color;
 
+    // Trigger celebration if target is reached
+    // We celebrate every time the threshold of 25 is reached (crosses from < 25 to >= 25)
+    if (completedWeight >= 25 && prevCompletedWeight < 25) {
+        celebrate();
+    }
+    prevCompletedWeight = completedWeight;
+
     history[todayStr] = completedWeight; // Save actual weight for stats, not capped
 
     saveState();
     renderWeeklyCalendar();
     renderStats();
 }
+
+function celebrate() {
+    const festiveIcons = [
+        '🥳', '🎉', '🎊', '🎈', '🎁', '🎇', '🎆', '✨', '🌟', '🥂',
+        '⭐', '🌈', '🦄', '🦖', '🦁', '🦋', '🥇', '🏆', '💎', '🚀',
+        '🔥', '⚡️', '🎸', '🎨', '🎬', '🍿', '🎰', '🎲', '💥', '🧡'
+    ];
+
+    // Pick ONE icon for this whole celebration to make it thematic
+    const selectedIcon = festiveIcons[Math.floor(Math.random() * festiveIcons.length)];
+
+    const container = document.createElement('div');
+    container.className = 'celebration-container';
+    document.body.appendChild(container);
+
+    const count = 100;
+
+    for (let i = 0; i < count; i++) {
+        const iconEl = document.createElement('div');
+        iconEl.className = 'celebration-icon';
+        iconEl.textContent = selectedIcon;
+
+        const startX = Math.random() * 100; // 0 to 100vw
+        iconEl.style.left = startX + 'vw';
+        iconEl.style.top = '-10vh';
+
+        const fontSize = 1.5 + Math.random() * 2.5; // Random size
+        const duration = 4 + Math.random() * 5; // Random fall speed
+        const delay = Math.random() * 3; // Staggered start
+        const drift = (Math.random() - 0.5) * 400; // Random horizontal drift in pixels
+
+        iconEl.style.fontSize = `${fontSize}rem`;
+        iconEl.style.setProperty('--drift', `${drift}px`);
+        iconEl.style.animation = `celebrate-fall ${duration}s linear ${delay}s forwards`;
+
+        container.appendChild(iconEl);
+    }
+
+    // Clean up
+    setTimeout(() => {
+        if (document.body.contains(container)) {
+            document.body.removeChild(container);
+        }
+    }, 15000); // 15s to ensure all have fallen
+}
+
 
 function getProgressColor(weight) {
     if (weight <= 0) return 'transparent';
@@ -182,6 +329,40 @@ function renderTasks() {
         taskList.appendChild(li);
     });
 }
+
+function renderDeletedTasks() {
+    binList.innerHTML = '';
+
+    if (deletedTasks.length === 0) {
+        binList.innerHTML = '<div class="empty-state">Your bin is empty.</div>';
+        return;
+    }
+
+    deletedTasks.forEach(task => {
+        const li = document.createElement('li');
+        li.className = 'task-card';
+        li.innerHTML = `
+            <div class="task-info">
+                <span class="task-name-text">${escapeHtml(task.name)}</span>
+                <div class="task-stats">
+                    <span class="stat-pill">U: ${task.urgency}</span>
+                    <span class="stat-pill">M: ${task.mood}</span>
+                    <span class="stat-pill">T: ${task.time}</span>
+                </div>
+            </div>
+            <div class="weight-sum">${task.sum}</div>
+            <div class="actions-group">
+                <button class="restore-btn" title="Undelete">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><polyline points="3 3 3 8 8 8"></polyline></svg>
+                </button>
+            </div>
+        `;
+
+        li.querySelector('.restore-btn').addEventListener('click', () => undeleteTask(task.id));
+        binList.appendChild(li);
+    });
+}
+
 
 function renderWeeklyCalendar() {
     const startOfWeek = new Date(today);
@@ -281,6 +462,55 @@ function renderStats() {
     }).length;
 
     statYear.textContent = Math.round((yearlySuccess / daysInYear) * 100) + '%';
+}
+
+function initSectionDragging() {
+    const main = document.querySelector('main');
+    const sections = main.querySelectorAll('[draggable="true"]');
+
+    sections.forEach(section => {
+        section.addEventListener('dragstart', (e) => {
+            section.classList.add('section-dragging');
+            e.dataTransfer.setData('text/plain', section.id);
+            e.dataTransfer.effectAllowed = 'move';
+        });
+
+        section.addEventListener('dragend', () => {
+            section.classList.remove('section-dragging');
+        });
+
+        section.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            const draggingSection = main.querySelector('.section-dragging');
+            if (!draggingSection) return;
+
+            const target = e.currentTarget;
+            if (target === draggingSection) return;
+
+            const rect = target.getBoundingClientRect();
+            const next = (e.clientY - rect.top) > (rect.height / 2);
+
+            main.insertBefore(draggingSection, next ? target.nextSibling : target);
+        });
+
+        section.addEventListener('drop', (e) => {
+            e.preventDefault();
+            saveSectionOrder();
+        });
+    });
+
+    // Handle dropping on main container for edge cases
+    main.addEventListener('dragover', (e) => {
+        e.preventDefault();
+    });
+}
+
+function saveSectionOrder() {
+    const main = document.querySelector('main');
+    const sections = main.querySelectorAll('section');
+    const order = Array.from(sections).map(s => s.id);
+    localStorage.setItem('sectionOrder', JSON.stringify(order));
+    saveState(); // Trigger full sync
 }
 
 function getLocalDateString(date) {
