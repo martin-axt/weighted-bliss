@@ -15,12 +15,24 @@
 <body>
     <div id="app">
         <header>
-            <h1>Weighted Bliss</h1>
+            <div class="header-top">
+                <h1>Weighted Bliss</h1>
+                <button id="bin-open-btn" class="bin-btn" title="View Bin">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 6h18"></path>
+                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                        <line x1="10" y1="11" x2="10" y2="17"></line>
+                        <line x1="14" y1="11" x2="14" y2="17"></line>
+                    </svg>
+                </button>
+            </div>
             <p class="subtitle">Prioritize your life, softly.</p>
         </header>
 
         <main>
-            <section class="task-input-card">
+            <section id="input-section" class="task-input-card">
                 <form id="todo-form">
                     <div class="input-group">
                         <input type="text" id="task-name" placeholder="What needs doing?" required autocomplete="off">
@@ -50,7 +62,7 @@
                 </form>
             </section>
 
-            <section class="progress-section">
+            <section id="progress-section" class="progress-section" draggable="true">
                 <div class="progress-header">
                     <span>Daily Progress</span>
                     <span id="progress-text">0 / 25</span>
@@ -60,7 +72,7 @@
                 </div>
             </section>
 
-            <section class="weekly-calendar-card">
+            <section id="calendar-section" class="weekly-calendar-card" draggable="true">
                 <div class="weekly-header">
                     <button id="prev-week" class="nav-btn">&lt;</button>
                     <span id="calendar-month-year">January 2026</span>
@@ -71,7 +83,7 @@
                 </div>
             </section>
 
-            <section class="stats-card">
+            <section id="stats-section" class="stats-card" draggable="true">
                 <h2 class="section-title">Statistics</h2>
                 <div class="stats-grid" id="stats-container">
                     <div class="stat-item">
@@ -101,21 +113,36 @@
                 </div>
             </section>
 
-            <section class="list-controls">
-                <div class="sort-info">
-                    Sorted by weight sum (Descending)
-                </div>
+            <section id="list-section" draggable="true">
+                <section class="list-controls">
+                    <div class="sort-info">
+                        Sorted by weight sum (Descending)
+                    </div>
+                </section>
+                <ul id="todo-list" class="task-list">
+                    <!-- Tasks will be injected here -->
+                </ul>
             </section>
-
-            <ul id="todo-list" class="task-list">
-                <!-- Tasks will be injected here -->
-            </ul>
         </main>
 
         <footer>
             <p>Total Weight = Urgency + Mood + Time</p>
         </footer>
     </div>
+    <div id="bin-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Deleted Tasks</h2>
+                <button id="bin-close-btn" class="close-btn">&times;</button>
+            </div>
+            <div id="bin-list-container">
+                <ul id="bin-list" class="task-list">
+                    <!-- Deleted tasks will be injected here -->
+                </ul>
+            </div>
+        </div>
+    </div>
+
     <script type="module" src="main.js"></script>
 </body>
 
