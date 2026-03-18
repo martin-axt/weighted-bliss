@@ -10,6 +10,7 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const port = process.env.PORT || 3001;
+const host = process.env.HOST || 'localhost';
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -82,6 +83,6 @@ app.post('/api/sync', (req, res) => {
   res.json({ status: 'success' });
 });
 
-app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
+app.listen(port, host, () => {
+  console.log(`Server running at http://${host}:${port}`);
 });

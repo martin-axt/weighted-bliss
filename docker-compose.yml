@@ -9,4 +9,4 @@ services:
       - ./weighted-bliss.db:/app/weighted-bliss.db
     environment:
       - PORT=3001
-      - NODE_ENV=production
+      - HOST=0.0.0.0
